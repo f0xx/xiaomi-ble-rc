@@ -20,14 +20,14 @@ import android.os.PowerManager;
 
 import androidx.core.app.NotificationCompat;
 
-import dev.foxx.xiaomirc.hid.HidPeripheral;
+import dev.foxx.xiaomirc.hid.ClassicHidSession;
 import dev.foxx.xiaomirc.hid.RemoteKey;
 
 /**
- * Keeps the BLE HID peripheral alive while the phone is in a pocket, so a
- * power press can still wake a bonded TV.
+ * Keeps the classic Bluetooth HID session alive so a power press can still
+ * reach a bonded TV after the screen is off.
  */
-public final class RemoteService extends Service implements HidPeripheral.Host {
+public final class RemoteService extends Service implements ClassicHidSession.Host {
     public static final String ACTION_STOP = "dev.foxx.xiaomirc.STOP";
     public static final String ADVERTISED_NAME = "XMRM-ML";
 
@@ -41,7 +41,7 @@ public final class RemoteService extends Service implements HidPeripheral.Host {
     private final IBinder binder = new LocalBinder();
     private final Handler main = new Handler(Looper.getMainLooper());
 
-    private HidPeripheral peripheral;
+    private ClassicHidSession peripheral;
     private Listener listener;
     private PowerManager.WakeLock wakeLock;
     private String title = "XMRM-ML";
@@ -124,15 +124,18 @@ public final class RemoteService extends Service implements HidPeripheral.Host {
     }
 
     public void setKey(RemoteKey key, boolean down) {
-        HidPeripheral current = peripheral;
+        ClassicHidSession current = peripheral;
         if (current == null) {
             return;
         }
-        if (down && key == RemoteKey.POWER && !current.canSend(key)) {
-            pendingPower = true;
-            acquireWake();
-            publish("Waking the TV",
-                    "XMRM-ML is advertising. The TV reconnects from standby, then the power key is sent.");
+        if (down && !current.canSend(key)) {
+            current.remember(savedDevice());
+            if (key == RemoteKey.POWER) {
+                pendingPower = true;
+                acquireWake();
+                publish("Waking the TV",
+                        "Opening the Bluetooth keyboard link. Power is sent when the TV accepts it.");
+            }
             return;
         }
         if (down) {
@@ -147,8 +150,8 @@ public final class RemoteService extends Service implements HidPeripheral.Host {
         advertising = true;
         String host = prefs(this).getString(KEY_HOST, null);
         if (host == null) {
-            publish("Visible as XMRM-ML",
-                    "On the TV: Settings → Remotes & accessories → Add device, then choose XMRM-ML. Accept the pair prompt on this phone. This phone's Bluetooth name is XMRM-ML until you tap Stop.");
+            publish("Looking for Family Room TV",
+                    "Leave the TV on Settings → Accessories. This phone pairs with it from here. That screen only lists keyboards, and Android will not let this phone change its Bluetooth type.");
         } else if (!ready) {
             publish("Waiting for the TV",
                     "Already paired. Press Power to wake it from standby. The phone has to stay nearby.");
@@ -157,7 +160,7 @@ public final class RemoteService extends Service implements HidPeripheral.Host {
 
     @Override
     public void onBonding(BluetoothDevice device) {
-        publish("Pairing", "Accept the Bluetooth prompt on this phone.");
+        publish("Pairing", "Confirm the code on the TV. The keyboard link opens after that.");
     }
 
     @Override
@@ -167,7 +170,7 @@ public final class RemoteService extends Service implements HidPeripheral.Host {
         } catch (SecurityException ignored) {
             // Name is enough for the next session; the address is an optimization.
         }
-        publish("Paired", "Finishing HID setup with the TV.");
+        publish("Paired", "Keyboard channel is up.");
     }
 
     @Override
@@ -207,8 +210,8 @@ public final class RemoteService extends Service implements HidPeripheral.Host {
             publish("Waiting for the TV",
                     "Link dropped. Press Power to wake it, or it will reconnect on its own.");
         } else {
-            publish("Visible as XMRM-ML",
-                    "The TV disconnected before pairing finished. Add XMRM-ML again from the TV's Bluetooth list.");
+            publish("Looking for Family Room TV",
+                    "The TV answers the scan but is not accepting a connection while Accessories stays on Searching. Leave that screen, then confirm the code if it appears.");
         }
     }
 
@@ -219,7 +222,7 @@ public final class RemoteService extends Service implements HidPeripheral.Host {
 
     private void begin() {
         ready = false;
-        peripheral = new HidPeripheral(this, this);
+        peripheral = new ClassicHidSession(this, this);
         publish("Starting", "Turning this phone into an XMRM-ML Bluetooth remote.");
         applyAdvertisedName();
         peripheral.open();
@@ -227,12 +230,25 @@ public final class RemoteService extends Service implements HidPeripheral.Host {
     }
 
     private void closePeripheral() {
-        HidPeripheral current = peripheral;
+        ClassicHidSession current = peripheral;
         peripheral = null;
         ready = false;
         advertising = false;
         if (current != null) {
             current.close();
+        }
+    }
+
+    private BluetoothDevice savedDevice() {
+        String address = prefs(this).getString(KEY_HOST, null);
+        BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+        if (address == null || adapter == null) {
+            return null;
+        }
+        try {
+            return adapter.getRemoteDevice(address);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

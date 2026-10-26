@@ -23,6 +23,7 @@ import dev.foxx.xiaomirc.ui.RemoteSkinView;
 public final class MainActivity extends AppCompatActivity implements RemoteService.Listener {
     private static final int REQUEST_PERMISSIONS = 1;
     private static final int REQUEST_ENABLE_BT = 2;
+    private static final int REQUEST_DISCOVERABLE = 3;
 
     private TextView status;
     private TextView detail;
@@ -31,6 +32,9 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
     private RemoteService service;
     private boolean bound;
     private boolean startWhenReady;
+    private boolean askedBluetooth;
+    private boolean askedDiscoverable;
+    private boolean askedLocation;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -65,8 +69,21 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
     @Override
     protected void onStart() {
         super.onStart();
+        if (!bluetoothEnabled()) {
+            if (!askedBluetooth) {
+                askedBluetooth = true;
+                startWhenReady = RemoteService.isEnabled(this);
+                detail.setText("Bluetooth is off. Allow the prompt so this phone can pair with the TV.");
+                startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQUEST_ENABLE_BT);
+            }
+            return;
+        }
         if (RemoteService.isEnabled(this) && bluetoothGranted()) {
+            if (!ensureLocation()) {
+                return;
+            }
             startRemoteService();
+            requestDiscoverable();
         }
         bindIfRunning();
     }
@@ -112,9 +129,24 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
             startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), REQUEST_ENABLE_BT);
             return;
         }
+        if (!ensureLocation()) {
+            startWhenReady = true;
+            return;
+        }
         startWhenReady = false;
         startRemoteService();
+        requestDiscoverable();
         bindIfRunning();
+    }
+
+    private void requestDiscoverable() {
+        if (askedDiscoverable || !bluetoothEnabled()) {
+            return;
+        }
+        askedDiscoverable = true;
+        Intent intent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+        intent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
+        startActivityForResult(intent, REQUEST_DISCOVERABLE);
     }
 
     private void startRemoteService() {
@@ -145,7 +177,7 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
             detail.setText("Reconnecting the remote…");
         } else {
             status.setText("XMRM-ML");
-            detail.setText("Tap Pair. On the TV, add a Bluetooth device named XMRM-ML. No Wi-Fi pairing.");
+            detail.setText("Tap Pair. This phone finds Family Room TV and pairs with it. Confirm the code on the TV.");
             skin.setLinkState(false, false);
         }
         boolean enabled = running || RemoteService.isEnabled(this);
@@ -187,6 +219,27 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
         }
     }
 
+    private boolean locationGranted() {
+        if (Build.VERSION.SDK_INT >= 31) {
+            return true;
+        }
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean ensureLocation() {
+        if (locationGranted()) {
+            return true;
+        }
+        if (!askedLocation) {
+            askedLocation = true;
+            detail.setText("Allow location access. Android requires it to search for classic Bluetooth devices.");
+            ActivityCompat.requestPermissions(
+                    this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_PERMISSIONS);
+        }
+        return false;
+    }
+
     private boolean bluetoothEnabled() {
         BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         return adapter != null && adapter.isEnabled();
@@ -196,7 +249,7 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_PERMISSIONS && startWhenReady && bluetoothGranted()) {
+        if (requestCode == REQUEST_PERMISSIONS && startWhenReady && bluetoothGranted() && locationGranted()) {
             onPairClicked();
         } else if (requestCode == REQUEST_PERMISSIONS && startWhenReady && !bluetoothGranted()) {
             startWhenReady = false;
@@ -207,12 +260,21 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_ENABLE_BT && startWhenReady) {
-            if (bluetoothEnabled()) {
-                onPairClicked();
-            } else {
+        if (requestCode == REQUEST_ENABLE_BT) {
+            if (!bluetoothEnabled()) {
                 startWhenReady = false;
                 detail.setText("Bluetooth is off. Turn it on to pair with the TV.");
+                return;
+            }
+            if (startWhenReady || RemoteService.isEnabled(this)) {
+                startWhenReady = false;
+                if (bluetoothGranted() && ensureLocation()) {
+                    startRemoteService();
+                    requestDiscoverable();
+                    bindIfRunning();
+                } else {
+                    startWhenReady = true;
+                }
             }
         }
     }
