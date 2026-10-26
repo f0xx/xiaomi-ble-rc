@@ -35,13 +35,23 @@ public class HidReportsTest {
         byte[] map = HidReportMap.build();
         assertTrue(containsPair(map, (byte) 0x85, HidReports.CONSUMER_REPORT_ID));
         assertTrue(containsPair(map, (byte) 0x85, HidReports.KEYBOARD_REPORT_ID));
+        assertTrue(containsPair(map, (byte) 0x85, HidReports.BUTTON_REPORT_ID));
         for (RemoteKey key : RemoteKey.values()) {
             if (key.kind == RemoteKey.Kind.CONSUMER) {
                 assertTrue(key.name(), key.usage > 0 && key.usage <= 0x03FF);
+            } else if (key.kind == RemoteKey.Kind.BUTTON) {
+                assertTrue(key.name(), key.usage >= 1 && key.usage <= 16);
             } else {
                 assertTrue(key.name(), key.usage > 0 && key.usage <= 0x65);
             }
         }
+        assertEquals(RemoteKey.Kind.CONSUMER, RemoteKey.APPS.kind);
+        assertEquals(0x01A2, RemoteKey.APPS.usage);
+        assertEquals(RemoteKey.Kind.BUTTON, RemoteKey.TV_PLUS.kind);
+        assertEquals(5, RemoteKey.TV_PLUS.usage);
+        byte[] netflix = HidReports.press(RemoteKey.NETFLIX);
+        assertEquals(0x20, netflix[0] & 0xFF);
+        assertEquals(0x00, netflix[1] & 0xFF);
     }
 
     private static boolean containsPair(byte[] data, byte a, int b) {

@@ -35,6 +35,7 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_ORIGINAL_NAME = "original_bt_name";
     private static final String KEY_HOST = "host_address";
+    private static final String KEY_DISCOVERABLE_ASKED = "discoverable_asked";
     private static final String CHANNEL_ID = "remote";
     private static final int NOTIFICATION_ID = 1;
 
@@ -66,6 +67,19 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
 
     public static boolean isEnabled(Context context) {
         return prefs(context).getBoolean(KEY_ENABLED, false);
+    }
+
+    public static boolean hasPairedHost(Context context) {
+        String host = prefs(context).getString(KEY_HOST, null);
+        return host != null && !host.isEmpty();
+    }
+
+    public static boolean discoverableAsked(Context context) {
+        return prefs(context).getBoolean(KEY_DISCOVERABLE_ASKED, false);
+    }
+
+    public static void markDiscoverableAsked(Context context) {
+        prefs(context).edit().putBoolean(KEY_DISCOVERABLE_ASKED, true).apply();
     }
 
     @Override
@@ -134,7 +148,7 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
                 pendingPower = true;
                 acquireWake();
                 publish("Waking the TV",
-                        "Opening the Bluetooth keyboard link. Power is sent when the TV accepts it.");
+                        "Opening the keyboard link. This reaches the TV while its Bluetooth radio is still awake. After a few minutes of deep sleep the radio is off, and a classic keyboard cannot wake it the way the original BLE remote can.");
             }
             return;
         }
@@ -154,7 +168,7 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
                     "Leave the TV on Settings → Accessories. This phone pairs with it from here. That screen only lists keyboards, and Android will not let this phone change its Bluetooth type.");
         } else if (!ready) {
             publish("Waiting for the TV",
-                    "Already paired. Press Power to wake it from standby. The phone has to stay nearby.");
+                    "Already paired. Power toggles the set while it is on. Deep sleep turns the TV's Bluetooth radio off, so this phone cannot wake it.");
         }
     }
 
@@ -185,7 +199,7 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
         advertising = true;
         String name = deviceName(device);
         publish(name == null ? "Connected" : "Connected to " + name,
-                "Buttons are live. Voice opens the assistant on the TV; it does not use this phone's microphone.");
+                "Buttons follow the generic Android TV layout, which is what this phone's keyboard identity produces. Voice opens search on the TV; the TV does not take this phone's microphone.");
         if (pendingPower && peripheral != null) {
             pendingPower = false;
             main.postDelayed(() -> {
@@ -208,7 +222,7 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
         String host = prefs(this).getString(KEY_HOST, null);
         if (host != null) {
             publish("Waiting for the TV",
-                    "Link dropped. Press Power to wake it, or it will reconnect on its own.");
+                    "Link dropped. Power still toggles the set while its Bluetooth radio is awake. Deep sleep turns that radio off.");
         } else {
             publish("Looking for Family Room TV",
                     "The TV answers the scan but is not accepting a connection while Accessories stays on Searching. Leave that screen, then confirm the code if it appears.");

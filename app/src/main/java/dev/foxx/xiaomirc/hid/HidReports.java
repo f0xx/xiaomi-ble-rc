@@ -9,8 +9,10 @@ package dev.foxx.xiaomirc.hid;
 public final class HidReports {
     public static final int CONSUMER_REPORT_ID = 1;
     public static final int KEYBOARD_REPORT_ID = 2;
+    public static final int BUTTON_REPORT_ID = 3;
     public static final int CONSUMER_REPORT_LEN = 2;
     public static final int KEYBOARD_REPORT_LEN = 8;
+    public static final int BUTTON_REPORT_LEN = 2;
 
     private HidReports() {
     }
@@ -32,9 +34,32 @@ public final class HidReports {
         return report;
     }
 
+    /** Sixteen button bits, button 1 in the least significant bit of the first byte. */
+    public static byte[] button(int number) {
+        byte[] report = new byte[BUTTON_REPORT_LEN];
+        if (number >= 1 && number <= 16) {
+            int bit = number - 1;
+            report[bit / 8] = (byte) (1 << (bit % 8));
+        }
+        return report;
+    }
+
+    public static int reportId(RemoteKey key) {
+        if (key.kind == RemoteKey.Kind.KEYBOARD) {
+            return KEYBOARD_REPORT_ID;
+        }
+        if (key.kind == RemoteKey.Kind.BUTTON) {
+            return BUTTON_REPORT_ID;
+        }
+        return CONSUMER_REPORT_ID;
+    }
+
     public static byte[] press(RemoteKey key) {
         if (key.kind == RemoteKey.Kind.KEYBOARD) {
             return keyboard(key.usage);
+        }
+        if (key.kind == RemoteKey.Kind.BUTTON) {
+            return button(key.usage);
         }
         return consumer(key.usage);
     }
@@ -42,6 +67,9 @@ public final class HidReports {
     public static byte[] release(RemoteKey key) {
         if (key.kind == RemoteKey.Kind.KEYBOARD) {
             return keyboard(0);
+        }
+        if (key.kind == RemoteKey.Kind.BUTTON) {
+            return button(0);
         }
         return consumer(0);
     }

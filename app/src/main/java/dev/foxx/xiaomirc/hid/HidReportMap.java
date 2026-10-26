@@ -23,6 +23,16 @@ public final class HidReportMap {
                 0x75, 0x10,
                 (byte) 0x95, 0x01,
                 (byte) 0x81, 0x00,
+                // Button page, report id 3. Button 6 lands on Generic.kl BUTTON_6.
+                (byte) 0x85, HidReports.BUTTON_REPORT_ID,
+                0x05, 0x09,
+                0x19, 0x01,
+                0x29, 0x10,
+                0x15, 0x00,
+                0x25, 0x01,
+                0x75, 0x01,
+                (byte) 0x95, 0x10,
+                (byte) 0x81, 0x02,
                 (byte) 0xC0,
 
                 // Keyboard, report id 2. Modifiers, reserved, LED output, six keys.

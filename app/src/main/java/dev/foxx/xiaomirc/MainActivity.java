@@ -33,7 +33,6 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
     private boolean bound;
     private boolean startWhenReady;
     private boolean askedBluetooth;
-    private boolean askedDiscoverable;
     private boolean askedLocation;
 
     private final ServiceConnection connection = new ServiceConnection() {
@@ -140,10 +139,10 @@ public final class MainActivity extends AppCompatActivity implements RemoteServi
     }
 
     private void requestDiscoverable() {
-        if (askedDiscoverable || !bluetoothEnabled()) {
+        if (!bluetoothEnabled() || RemoteService.hasPairedHost(this) || RemoteService.discoverableAsked(this)) {
             return;
         }
-        askedDiscoverable = true;
+        RemoteService.markDiscoverableAsked(this);
         Intent intent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
         intent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
         startActivityForResult(intent, REQUEST_DISCOVERABLE);

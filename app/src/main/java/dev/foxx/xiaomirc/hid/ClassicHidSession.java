@@ -63,6 +63,7 @@ public final class ClassicHidSession {
     private int hidFailures;
     private byte[] lastConsumer = HidReports.consumer(0);
     private byte[] lastKeyboard = HidReports.keyboard(0);
+    private byte[] lastButton = HidReports.button(0);
 
     public ClassicHidSession(Context context, Host host) {
         this.context = context.getApplicationContext();
@@ -309,19 +310,13 @@ public final class ClassicHidSession {
         if (!canSend(key)) {
             return;
         }
-        int id = key.kind == RemoteKey.Kind.KEYBOARD
-                ? HidReports.KEYBOARD_REPORT_ID
-                : HidReports.CONSUMER_REPORT_ID;
+        int id = HidReports.reportId(key);
         byte[] payload = down ? HidReports.press(key) : HidReports.release(key);
-        if (key.kind == RemoteKey.Kind.KEYBOARD) {
-            if (down) {
-                lastConsumer = HidReports.consumer(0);
-            }
+        if (id == HidReports.KEYBOARD_REPORT_ID) {
             lastKeyboard = payload;
+        } else if (id == HidReports.BUTTON_REPORT_ID) {
+            lastButton = payload;
         } else {
-            if (down) {
-                lastKeyboard = HidReports.keyboard(0);
-            }
             lastConsumer = payload;
         }
         try {
@@ -381,6 +376,19 @@ public final class ClassicHidSession {
         } catch (SecurityException e) {
             Log.w(TAG, "HID connect", e);
         }
+    }
+
+    private void logLayout(BluetoothDevice device) {
+        BluetoothClass cls = null;
+        try {
+            cls = device.getBluetoothClass();
+        } catch (SecurityException ignored) {
+            // Class is only a log.
+        }
+        int major = cls == null ? -1 : cls.getMajorDeviceClass();
+        int deviceClass = cls == null ? -1 : cls.getDeviceClass();
+        Log.i(TAG, "layout generic-android-tv major=" + major + " device=" + deviceClass
+                + " name=" + safeName(device));
     }
 
     private void markAsKeyboard(BluetoothAdapter bluetooth) {
@@ -463,6 +471,7 @@ public final class ClassicHidSession {
                 pendingHost = device;
                 linkInProgress = false;
                 hidFailures = 0;
+                logLayout(device);
                 host.onBonded(device);
                 host.onReady(device);
             } else if (state == BluetoothProfile.STATE_CONNECTING && device != null) {
@@ -482,7 +491,12 @@ public final class ClassicHidSession {
             if (hid == null) {
                 return;
             }
-            byte[] data = id == HidReports.KEYBOARD_REPORT_ID ? lastKeyboard : lastConsumer;
+            byte[] data = lastConsumer;
+            if (id == HidReports.KEYBOARD_REPORT_ID) {
+                data = lastKeyboard;
+            } else if (id == HidReports.BUTTON_REPORT_ID) {
+                data = lastButton;
+            }
             if (bufferSize > 0 && bufferSize < data.length) {
                 byte[] trimmed = new byte[bufferSize];
                 System.arraycopy(data, 0, trimmed, 0, bufferSize);
