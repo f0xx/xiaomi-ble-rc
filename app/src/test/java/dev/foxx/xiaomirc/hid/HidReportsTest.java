@@ -49,6 +49,8 @@ public class HidReportsTest {
         assertEquals(0x01A2, RemoteKey.APPS.usage);
         assertEquals(RemoteKey.Kind.BUTTON, RemoteKey.TV_PLUS.kind);
         assertEquals(5, RemoteKey.TV_PLUS.usage);
+        assertEquals(RemoteKey.Kind.BUTTON, RemoteKey.TV.kind);
+        assertEquals(5, RemoteKey.TV.usage);
         byte[] netflix = HidReports.press(RemoteKey.NETFLIX);
         assertEquals(0x20, netflix[0] & 0xFF);
         assertEquals(0x00, netflix[1] & 0xFF);

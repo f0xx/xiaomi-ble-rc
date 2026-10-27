@@ -5,9 +5,10 @@ package dev.foxx.xiaomirc.hid;
  *
  * <p>This phone's classic HID record cannot carry Xiaomi's vendor id, so an
  * L43MA-SEU loads {@code Generic.kl} rather than {@code Vendor_2717_Product_32b9.kl}.
- * Usages below are the ones that table actually turns into Android keys:
- * consumer {@code 0x01A2} is All apps, button 6/7/3/5 are Netflix, Prime,
- * YouTube and TV+, and {@code 0x0089} is the TV key.
+ * Usages below are the ones that table actually turns into Android keys.
+ * Consumer {@code 0x01A2} is All apps. Buttons 6, 7 and 3 are Netflix, Prime
+ * and YouTube. On MiTV-MOOR2 the live tuner starts from button 5, so both
+ * TV and TV+ send that. {@code KEYCODE_TV} does not select the satellite input.
  */
 public enum RemoteKey {
     POWER(Kind.CONSUMER, 0x0030),
@@ -39,7 +40,7 @@ public enum RemoteKey {
     NETFLIX(Kind.BUTTON, 6),
     PRIME(Kind.BUTTON, 7),
     YOUTUBE(Kind.BUTTON, 3),
-    TV(Kind.CONSUMER, 0x0089),
+    TV(Kind.BUTTON, 5),
     APPS(Kind.CONSUMER, 0x01A2),
     TV_PLUS(Kind.BUTTON, 5),
     PLAY(Kind.CONSUMER, 0x00CD),

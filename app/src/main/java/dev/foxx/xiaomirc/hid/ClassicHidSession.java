@@ -43,6 +43,9 @@ public final class ClassicHidSession {
         void onDisconnected();
 
         void onFailed(String message);
+
+        /** A key-down report was accepted by the HID stack. */
+        void onKeyDelivered();
     }
 
     private final Context context;
@@ -322,6 +325,9 @@ public final class ClassicHidSession {
         try {
             boolean ok = hid.sendReport(connected, id, payload);
             Log.i(TAG, "report " + key + (down ? " down " : " up ") + ok);
+            if (down && ok) {
+                host.onKeyDelivered();
+            }
         } catch (SecurityException e) {
             Log.w(TAG, "sendReport", e);
         }

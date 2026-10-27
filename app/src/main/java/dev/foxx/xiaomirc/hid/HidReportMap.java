@@ -1,9 +1,9 @@
 package dev.foxx.xiaomirc.hid;
 
 /**
- * Report map for one consumer-control collection and one keyboard collection.
- * Usages are a 16-bit array so the kernel maps each code through hid-input
- * instead of us inventing a private page.
+ * Three application collections. The shortcut keys are their own collection:
+ * a button bitmap left inside the consumer array is dropped when the TV keeps
+ * the descriptor it stored at pairing time.
  */
 public final class HidReportMap {
     private HidReportMap() {
@@ -23,7 +23,12 @@ public final class HidReportMap {
                 0x75, 0x10,
                 (byte) 0x95, 0x01,
                 (byte) 0x81, 0x00,
-                // Button page, report id 3. Button 6 lands on Generic.kl BUTTON_6.
+                (byte) 0xC0,
+                // Own consumer-control application, report id 3. Not a gamepad,
+                // so button 6 stays Generic.kl BUTTON_6 rather than BUTTON_A.
+                0x05, 0x0C,
+                0x09, 0x01,
+                (byte) 0xA1, 0x01,
                 (byte) 0x85, HidReports.BUTTON_REPORT_ID,
                 0x05, 0x09,
                 0x19, 0x01,

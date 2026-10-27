@@ -1,0 +1,25 @@
+# Disabled for this user only. restore.sh enables them again.
+# Launcher, Kodi, YouTube, satellite/CI, Cast, settings, and ADB stay enabled.
+com.netflix.ninja
+com.amazon.amazonvideo.livingroom
+com.hulu.livingroomplus
+com.disney.disneyplus
+com.tubitv
+com.nousguide.android.rbtv
+com.google.android.videos
+com.google.android.youtube.tvmusic
+com.google.android.youtube.tvunplugged
+com.google.android.play.games
+com.xm.webcontent
+com.xiaomi.floatingframe
+fusion.android.tv.demo
+com.miui.tv.analytics
+com.xiaomi.statistic
+com.mitv.tvhome.mitvplus
+com.mitv.tvhome.michannel
+com.mitv.tvhome.oemtab
+com.mitv.tvhome.atv
+com.xiaomi.mimusic2
+com.mitv.gallery
+com.xiaomi.mitv.manualhelp
+com.xiaomi.mitv.smartshare

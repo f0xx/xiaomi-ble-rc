@@ -10,7 +10,6 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.util.AttributeSet;
-import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.SoundEffectConstants;
 import android.view.View;
@@ -316,7 +315,6 @@ public final class RemoteSkinView extends View {
 
     private void fire(RemoteKey key, boolean down) {
         if (down) {
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             playSoundEffect(SoundEffectConstants.CLICK);
         }
         if (listener != null) {

@@ -17,11 +17,14 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 
 import androidx.core.app.NotificationCompat;
 
 import dev.foxx.xiaomirc.hid.ClassicHidSession;
 import dev.foxx.xiaomirc.hid.RemoteKey;
+import dev.foxx.xiaomirc.net.TvLan;
 
 /**
  * Keeps the classic Bluetooth HID session alive so a power press can still
@@ -35,6 +38,7 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_ORIGINAL_NAME = "original_bt_name";
     private static final String KEY_HOST = "host_address";
+    private static final String KEY_HOST_NAME = "host_name";
     private static final String KEY_DISCOVERABLE_ASKED = "discoverable_asked";
     private static final String CHANNEL_ID = "remote";
     private static final int NOTIFICATION_ID = 1;
@@ -50,6 +54,14 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
     private boolean ready;
     private boolean advertising;
     private boolean pendingPower;
+    private TvLan lan;
+
+    private TvLan lan() {
+        if (lan == null) {
+            lan = new TvLan(this);
+        }
+        return lan;
+    }
 
     public interface Listener {
         void onStateChanged();
@@ -129,6 +141,10 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
         pendingPower = false;
         prefs(this).edit().putBoolean(KEY_ENABLED, false).apply();
         closePeripheral();
+        if (lan != null) {
+            lan.close();
+            lan = null;
+        }
         restoreAdapterName();
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
@@ -147,8 +163,19 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
             if (key == RemoteKey.POWER) {
                 pendingPower = true;
                 acquireWake();
-                publish("Waking the TV",
-                        "Opening the keyboard link. This reaches the TV while its Bluetooth radio is still awake. After a few minutes of deep sleep the radio is off, and a classic keyboard cannot wake it the way the original BLE remote can.");
+                boolean sent = lan().wake();
+                if (!sent) {
+                    lan().learn(prefs(this).getString(KEY_HOST, null),
+                            prefs(this).getString(KEY_HOST_NAME, null), () -> {
+                                if (pendingPower && lan().wake()) {
+                                    publish("Waking the TV",
+                                            "Sent a network wake packet, and opening the keyboard link.");
+                                }
+                            });
+                }
+                publish("Waking the TV", sent
+                        ? "Sent the wake packet to the ethernet router. The set turns on when that router repeats it onto the TV cable."
+                        : "Opening the keyboard link. A network wake is sent after this phone has seen the TV on the same Wi-Fi.");
             }
             return;
         }
@@ -180,7 +207,12 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
     @Override
     public void onBonded(BluetoothDevice device) {
         try {
-            prefs(this).edit().putString(KEY_HOST, device.getAddress()).apply();
+            SharedPreferences.Editor editor = prefs(this).edit().putString(KEY_HOST, device.getAddress());
+            String name = deviceName(device);
+            if (name != null) {
+                editor.putString(KEY_HOST_NAME, name);
+            }
+            editor.apply();
         } catch (SecurityException ignored) {
             // Name is enough for the next session; the address is an optimization.
         }
@@ -200,6 +232,11 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
         String name = deviceName(device);
         publish(name == null ? "Connected" : "Connected to " + name,
                 "Buttons follow the generic Android TV layout, which is what this phone's keyboard identity produces. Voice opens search on the TV; the TV does not take this phone's microphone.");
+        try {
+            lan().learn(device.getAddress(), name, null);
+        } catch (SecurityException ignored) {
+            lan().learn(null, name, null);
+        }
         if (pendingPower && peripheral != null) {
             pendingPower = false;
             main.postDelayed(() -> {
@@ -234,6 +271,15 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
         publish("Remote paused", message);
     }
 
+    @Override
+    public void onKeyDelivered() {
+        Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            return;
+        }
+        vibrator.vibrate(VibrationEffect.createOneShot(28, VibrationEffect.DEFAULT_AMPLITUDE));
+    }
+
     private void begin() {
         ready = false;
         peripheral = new ClassicHidSession(this, this);
@@ -241,6 +287,7 @@ public final class RemoteService extends Service implements ClassicHidSession.Ho
         applyAdvertisedName();
         peripheral.open();
         main.postDelayed(this::reconnectSaved, 1200);
+        lan().learn(prefs(this).getString(KEY_HOST, null), prefs(this).getString(KEY_HOST_NAME, null), null);
     }
 
     private void closePeripheral() {
